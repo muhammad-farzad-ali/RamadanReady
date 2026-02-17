@@ -6,7 +6,8 @@
 const app = {
     currentScreen: 'home',
     countdownInterval: null,
-    todayData: null
+    todayData: null,
+    deferredPrompt: null
 };
 
 // Initialize app
@@ -14,7 +15,92 @@ document.addEventListener('DOMContentLoaded', async () => {
     await initApp();
     setupNavigation();
     setupServiceWorker();
+    setupPWAInstall();
 });
+
+/**
+ * Setup PWA install prompt
+ */
+function setupPWAInstall() {
+    // Capture the install prompt event
+    window.addEventListener('beforeinstallprompt', (e) => {
+        // Prevent the mini-infobar from appearing on mobile
+        e.preventDefault();
+        // Store the event for later use
+        app.deferredPrompt = e;
+        // Show the install button
+        showInstallButton();
+    });
+
+    // Handle the appinstalled event
+    window.addEventListener('appinstalled', () => {
+        // Clear the deferredPrompt
+        app.deferredPrompt = null;
+        // Hide the install button
+        hideInstallButton();
+        showToast('App installed successfully!', 'success');
+    });
+}
+
+/**
+ * Show install button
+ */
+function showInstallButton() {
+    if (!app.deferredPrompt) return;
+    
+    // Check if button already exists
+    let installBtn = document.getElementById('install-btn');
+    if (!installBtn) {
+        installBtn = document.createElement('button');
+        installBtn.id = 'install-btn';
+        installBtn.className = 'btn-install';
+        installBtn.innerHTML = '📱 Install App';
+        installBtn.onclick = installPWA;
+        
+        // Add to navbar
+        const navLinks = document.querySelector('.nav-links');
+        if (navLinks) {
+            navLinks.appendChild(installBtn);
+        }
+    }
+    installBtn.style.display = 'inline-flex';
+}
+
+/**
+ * Hide install button
+ */
+function hideInstallButton() {
+    const installBtn = document.getElementById('install-btn');
+    if (installBtn) {
+        installBtn.style.display = 'none';
+    }
+}
+
+/**
+ * Install the PWA
+ */
+async function installPWA() {
+    if (!app.deferredPrompt) {
+        showToast('App is already installed or installation not available', 'info');
+        return;
+    }
+    
+    // Show the install prompt
+    app.deferredPrompt.prompt();
+    
+    // Wait for the user to respond
+    const { outcome } = await app.deferredPrompt.userChoice;
+    
+    if (outcome === 'accepted') {
+        console.log('User accepted the install prompt');
+        hideInstallButton();
+    } else {
+        console.log('User dismissed the install prompt');
+    }
+    
+    // Clear the deferredPrompt
+    app.deferredPrompt = null;
+}
 
 /**
  * Initialize the application

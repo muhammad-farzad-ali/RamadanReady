@@ -597,7 +597,28 @@ body {
     padding: 0;
     background: var(--background);
     color: var(--text-primary);
-    font-size: 1.1rem;
+}
+
+.btn-install {
+    background: var(--secondary-color);
+    color: var(--primary-dark);
+    padding: var(--spacing-sm) var(--spacing-md);
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: bold;
+    transition: all 0.2s ease;
+    display: none;
+    align-items: center;
+    gap: var(--spacing-xs);
+    white-space: nowrap;
+}
+
+.btn-install:hover {
+    background: var(--secondary-light);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-hover);
 }
 
 .btn-icon:hover {
