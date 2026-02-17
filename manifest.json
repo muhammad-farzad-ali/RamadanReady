@@ -2,7 +2,7 @@
   "name": "RamadanReady",
   "short_name": "Ramadan",
   "description": "Manage your Ramadan fasting calendars with offline support",
-  "start_url": ".",
+  "start_url": "./index.html",
   "scope": ".",
   "display": "standalone",
   "orientation": "portrait",
@@ -29,14 +29,14 @@
       "name": "Home",
       "short_name": "Home",
       "description": "View today's fasting times",
-      "url": "/",
+      "url": "./",
       "icons": [{ "src": "icons/icon-192x192.svg", "sizes": "192x192" }]
     },
     {
       "name": "Calendars",
       "short_name": "Calendars",
       "description": "Manage your calendars",
-      "url": "/?screen=calendars",
+      "url": "./?screen=calendars",
       "icons": [{ "src": "icons/icon-192x192.svg", "sizes": "192x192" }]
     }
   ]
