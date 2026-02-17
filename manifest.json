@@ -1,9 +1,10 @@
 {
   "name": "RamadanReady",
   "short_name": "Ramadan",
+  "id": "/RamadanReady/",
   "description": "Manage your Ramadan fasting calendars with offline support",
-  "start_url": "./index.html",
-  "scope": ".",
+  "start_url": "/RamadanReady/",
+  "scope": "/RamadanReady/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#f8f5f0",
@@ -12,16 +13,16 @@
   "lang": "en",
   "icons": [
     {
-      "src": "icons/icon-192x192.svg",
+      "src": "icons/icon-192x192.png",
       "sizes": "192x192",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
-      "src": "icons/icon-512x512.svg",
+      "src": "icons/icon-512x512.png",
       "sizes": "512x512",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "type": "image/png",
+      "purpose": "any"
     }
   ],
   "shortcuts": [
@@ -29,15 +30,15 @@
       "name": "Home",
       "short_name": "Home",
       "description": "View today's fasting times",
-      "url": "./",
-      "icons": [{ "src": "icons/icon-192x192.svg", "sizes": "192x192" }]
+      "url": "/RamadanReady/",
+      "icons": [{ "src": "icons/icon-192x192.png", "sizes": "192x192" }]
     },
     {
       "name": "Calendars",
       "short_name": "Calendars",
       "description": "Manage your calendars",
-      "url": "./?screen=calendars",
-      "icons": [{ "src": "icons/icon-192x192.svg", "sizes": "192x192" }]
+      "url": "/RamadanReady/?screen=calendars",
+      "icons": [{ "src": "icons/icon-192x192.png", "sizes": "192x192" }]
     }
   ]
 }
