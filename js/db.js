@@ -245,6 +245,58 @@ class RamadanDB {
     }
 
     /**
+     * Create sample calendar for new users
+     * @returns {Promise<number>} - ID of created sample calendar
+     */
+    async createSampleCalendar() {
+        const currentYear = new Date().getFullYear();
+        
+        // Generate sample 30-day calendar with realistic times
+        const days = [];
+        const baseSaharHour = 5;
+        const baseSaharMinute = 30;
+        const baseIftarHour = 18;
+        const baseIftarMinute = 30;
+        
+        for (let i = 1; i <= 30; i++) {
+            // Vary times slightly for realism (Sahar gets earlier, Iftar gets later)
+            const dayOffset = i - 1;
+            const saharMinute = (baseSaharMinute - dayOffset) % 60;
+            const saharHour = baseSaharHour + Math.floor((baseSaharMinute - dayOffset) / 60);
+            const iftarMinute = (baseIftarMinute + dayOffset) % 60;
+            const iftarHour = baseIftarHour + Math.floor((baseIftarMinute + dayOffset) / 60);
+            
+            // Calculate date (assuming Ramadan starts March 1st for demo)
+            const dayOfMonth = i;
+            const month = 3; // March
+            
+            days.push({
+                date: `${String(dayOfMonth).padStart(2, '0')}-${String(month).padStart(2, '0')}`,
+                saharTime: `${String(saharHour).padStart(2, '0')}:${String(Math.abs(saharMinute)).padStart(2, '0')}`,
+                iftarTime: `${String(iftarHour).padStart(2, '0')}:${String(iftarMinute).padStart(2, '0')}`
+            });
+        }
+        
+        const sampleCalendar = {
+            name: 'Sample Calendar (Example Data)',
+            year: currentYear,
+            days: days,
+            isSample: true
+        };
+        
+        return this.createCalendar(sampleCalendar);
+    }
+
+    /**
+     * Check if we should create a sample calendar (first time user)
+     * @returns {Promise<boolean>}
+     */
+    async shouldCreateSample() {
+        const calendars = await this.getAllCalendars();
+        return calendars.length === 0;
+    }
+
+    /**
      * Clear all data (for testing/debugging)
      * @returns {Promise<void>}
      */

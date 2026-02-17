@@ -24,6 +24,13 @@ async function initApp() {
         // Initialize database
         await ramadanDB.init();
         
+        // Check if first-time user and create sample calendar
+        const shouldCreateSample = await ramadanDB.shouldCreateSample();
+        if (shouldCreateSample) {
+            await ramadanDB.createSampleCalendar();
+            showToast('Welcome! A sample calendar has been created for you. Edit or replace it with your own data.', 'info');
+        }
+        
         // Load screens
         renderHomeScreen();
         renderCalendarsScreen();
