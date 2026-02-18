@@ -3,7 +3,7 @@
  * Provides offline support and background notifications
  */
 
-const CACHE_VERSION = 'ramadan-ready-v2';
+const CACHE_VERSION = 'ramadan-ready-v3';
 const CACHE_NAME = CACHE_VERSION;
 const FETCH_TIMEOUT = 5000;
 const STATIC_ASSETS = [

@@ -740,7 +740,7 @@ function renderSettingsScreen() {
             
             <div class="settings-section">
                 <h3>About</h3>
-                <p>RamadanReady v1.0</p>
+                <p>RamadanReady v2.0</p>
                 <p>A PWA for managing Ramadan fasting calendars</p>
                 <p>Works offline • No data collection</p>
             </div>
