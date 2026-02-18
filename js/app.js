@@ -110,6 +110,14 @@ async function initApp() {
         // Initialize database
         await ramadanDB.init();
         
+        // Check storage availability and warn if needed
+        if (!ramadanDB.isIndexedDBAvailable()) {
+            showToast('IndexedDB is not available. Data will not be saved.', 'error');
+        }
+        
+        // Auto-recover active calendar if localStorage was cleared
+        await ramadanDB.autoRecoverActiveCalendar();
+        
         // Check if first-time user and create sample calendar
         const shouldCreateSample = await ramadanDB.shouldCreateSample();
         if (shouldCreateSample) {
@@ -131,6 +139,15 @@ async function initApp() {
         if (typeof checkMissedAlarms === 'function') {
             checkMissedAlarms();
         }
+        
+        // Setup refresh blocking for standalone mode
+        disableRefresh();
+        
+        // Request notification permission on first launch
+        requestNotificationPermission();
+        
+        // Setup network status indicator
+        setupNetworkStatus();
         
     } catch (error) {
         console.error('Failed to initialize app:', error);
@@ -878,9 +895,192 @@ function setupServiceWorker() {
         navigator.serviceWorker.register('service-worker.js')
             .then(registration => {
                 console.log('Service Worker registered:', registration);
+                
+                registration.addEventListener('updatefound', () => {
+                    const newWorker = registration.installing;
+                    newWorker.addEventListener('statechange', () => {
+                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                            showUpdateBanner();
+                        }
+                    });
+                });
             })
             .catch(error => {
                 console.log('Service Worker registration failed:', error);
             });
     }
+}
+
+function showUpdateBanner() {
+    const banner = document.createElement('div');
+    banner.id = 'update-banner';
+    banner.innerHTML = `
+        <span>New version available</span>
+        <button class="btn-primary" id="refresh-btn">Refresh</button>
+    `;
+    banner.style.cssText = `
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: var(--primary);
+        color: white;
+        padding: 12px 20px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        z-index: 10000;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    `;
+    document.body.appendChild(banner);
+    
+    document.getElementById('refresh-btn').addEventListener('click', () => {
+        window.location.reload();
+    });
+}
+
+function blockRefresh(e) {
+    if (!window.matchMedia('(display-mode: standalone)').matches && 
+        !window.navigator.standalone) {
+        return;
+    }
+    e.preventDefault();
+    e.returnValue = '';
+}
+
+function disableRefresh() {
+    if (window.matchMedia('(display-mode: standalone)').matches || 
+        window.navigator.standalone ||
+        window.location.href.includes('display-mode=standalone')) {
+        window.addEventListener('beforeunload', blockRefresh);
+        document.addEventListener('keydown', (e) => {
+            if ((e.key === 'F5' || (e.ctrlKey && e.key === 'r') || (e.ctrlKey && e.key === 'R')) &&
+                (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone)) {
+                e.preventDefault();
+            }
+        });
+    }
+}
+
+const NOTIFICATION_PERMISSION_KEY = 'notificationPermissionAsked';
+const NOTIFICATION_ASKED_VERSION = 'notificationPermissionVersion';
+
+async function requestNotificationPermission() {
+    if (!('Notification' in window)) {
+        return;
+    }
+    
+    const lastAskedVersion = localStorage.getItem(NOTIFICATION_ASKED_VERSION);
+    const currentVersion = '2.0.0';
+    
+    if (Notification.permission === 'default' || 
+        (lastAskedVersion && lastAskedVersion !== currentVersion && Notification.permission === 'denied')) {
+        const banner = document.createElement('div');
+        banner.id = 'notification-permission-banner';
+        banner.innerHTML = `
+            <div class="notification-banner-content">
+                <span>Enable notifications to receive alarm reminders for suhoor and iftar times.</span>
+                <div class="notification-banner-buttons">
+                    <button class="btn-primary" id="enable-notifications-btn">Enable</button>
+                    <button class="btn-secondary" id="skip-notifications-btn">Not Now</button>
+                </div>
+            </div>
+        `;
+        banner.style.cssText = `
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: var(--primary);
+            color: white;
+            padding: 16px;
+            z-index: 10000;
+            box-shadow: 0 -4px 12px rgba(0,0,0,0.15);
+        `;
+        
+        const style = document.createElement('style');
+        style.textContent = `
+            .notification-banner-content {
+                max-width: 1200px;
+                margin: 0 auto;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                flex-wrap: wrap;
+                gap: 12px;
+            }
+            .notification-banner-buttons {
+                display: flex;
+                gap: 8px;
+            }
+            .notification-banner-buttons button {
+                padding: 8px 16px;
+                border: none;
+                border-radius: 6px;
+                cursor: pointer;
+                font-weight: 600;
+            }
+            .notification-banner-buttons .btn-primary {
+                background: white;
+                color: var(--primary);
+            }
+            .notification-banner-buttons .btn-secondary {
+                background: transparent;
+                color: white;
+                border: 1px solid white;
+            }
+        `;
+        document.head.appendChild(style);
+        document.body.appendChild(banner);
+        
+        document.getElementById('enable-notifications-btn').addEventListener('click', async () => {
+            const permission = await Notification.requestPermission();
+            localStorage.setItem(NOTIFICATION_PERMISSION_KEY, permission);
+            localStorage.setItem(NOTIFICATION_ASKED_VERSION, currentVersion);
+            banner.remove();
+            if (permission === 'granted') {
+                showToast('Notifications enabled! You will receive alarm reminders.', 'success');
+            }
+        });
+        
+        document.getElementById('skip-notifications-btn').addEventListener('click', () => {
+            localStorage.setItem(NOTIFICATION_ASKED_VERSION, currentVersion);
+            banner.remove();
+        });
+    }
+}
+
+function setupNetworkStatus() {
+    function updateOnlineStatus() {
+        let banner = document.getElementById('network-status-banner');
+        if (!navigator.onLine) {
+            if (!banner) {
+                banner = document.createElement('div');
+                banner.id = 'network-status-banner';
+                banner.innerHTML = '<span>You are offline. Data will sync when reconnected.</span>';
+                banner.style.cssText = `
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    background: #f59e0b;
+                    color: white;
+                    padding: 10px;
+                    text-align: center;
+                    z-index: 10001;
+                    font-weight: 500;
+                `;
+                document.body.appendChild(banner);
+            }
+        } else {
+            if (banner) {
+                banner.remove();
+            }
+        }
+    }
+    
+    window.addEventListener('online', updateOnlineStatus);
+    window.addEventListener('offline', updateOnlineStatus);
+    updateOnlineStatus();
 }

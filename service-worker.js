@@ -3,7 +3,9 @@
  * Provides offline support and background notifications
  */
 
-const CACHE_NAME = 'ramadan-ready-v1';
+const CACHE_VERSION = 'ramadan-ready-v2';
+const CACHE_NAME = CACHE_VERSION;
+const FETCH_TIMEOUT = 5000;
 const STATIC_ASSETS = [
     '/',
     '/index.html',
@@ -60,7 +62,7 @@ self.addEventListener('activate', (event) => {
     );
 });
 
-// Fetch event - cache-first strategy
+// Fetch event - hybrid caching strategy
 self.addEventListener('fetch', (event) => {
     // Skip non-GET requests
     if (event.request.method !== 'GET') {
@@ -72,40 +74,62 @@ self.addEventListener('fetch', (event) => {
         return;
     }
     
-    event.respondWith(
-        caches.match(event.request)
-            .then((cachedResponse) => {
-                // Return cached version if available
-                if (cachedResponse) {
-                    return cachedResponse;
-                }
-                
-                // Fetch from network
-                return fetch(event.request)
-                    .then((networkResponse) => {
-                        // Don't cache non-successful responses
-                        if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
-                            return networkResponse;
-                        }
-                        
-                        // Clone response for caching
-                        const responseToCache = networkResponse.clone();
-                        
-                        caches.open(CACHE_NAME)
-                            .then((cache) => {
-                                cache.put(event.request, responseToCache);
-                            });
-                        
-                        return networkResponse;
-                    })
-                    .catch((error) => {
-                        console.error('Service Worker: Fetch failed', error);
-                        // Could return a custom offline page here
-                        throw error;
-                    });
-            })
-    );
+    const url = new URL(event.request.url);
+    const isHtmlRequest = url.pathname.endsWith('.html') || url.pathname === '/' || url.pathname === '/index.html';
+    
+    if (isHtmlRequest) {
+        // Network-first with cache fallback for HTML
+        event.respondWith(networkFirstWithCacheFallback(event.request));
+    } else {
+        // Cache-first for static assets (CSS, JS, icons)
+        event.respondWith(cacheFirstStrategy(event.request));
+    }
 });
+
+// Network-first with cache fallback for HTML
+async function networkFirstWithCacheFallback(request) {
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
+        
+        const networkResponse = await fetch(request, { signal: controller.signal });
+        clearTimeout(timeoutId);
+        
+        if (networkResponse && networkResponse.status === 200) {
+            const responseClone = networkResponse.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(request, responseClone));
+        }
+        
+        return networkResponse;
+    } catch (error) {
+        console.log('Service Worker: Network failed, trying cache for', request.url);
+        const cachedResponse = await caches.match(request);
+        if (cachedResponse) {
+            return cachedResponse;
+        }
+        throw error;
+    }
+}
+
+// Cache-first strategy for static assets
+async function cacheFirstStrategy(request) {
+    const cachedResponse = await caches.match(request);
+    if (cachedResponse) {
+        return cachedResponse;
+    }
+    
+    try {
+        const networkResponse = await fetch(request);
+        if (networkResponse && networkResponse.status === 200) {
+            const responseClone = networkResponse.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(request, responseClone));
+        }
+        return networkResponse;
+    } catch (error) {
+        console.error('Service Worker: Fetch failed for', request.url, error);
+        throw error;
+    }
+}
 
 // Message event - handle communication from main thread
 self.addEventListener('message', (event) => {
@@ -128,6 +152,14 @@ self.addEventListener('message', (event) => {
                 }
             ]
         });
+    }
+    
+    if (event.data && event.data.type === 'SKIP_WAITING') {
+        self.skipWaiting();
+    }
+    
+    if (event.data && event.data.type === 'GET_VERSION') {
+        event.ports[0].postMessage({ version: CACHE_VERSION });
     }
 });
 

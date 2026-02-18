@@ -18,13 +18,27 @@ class RamadanDB {
      */
     async init() {
         if (this.db) return this.db;
+        
+        if (!RamadanDB.isIndexedDBAvailable()) {
+            throw new Error('IndexedDB is not available in this browser');
+        }
 
         return new Promise((resolve, reject) => {
             const request = indexedDB.open(this.dbName, this.dbVersion);
 
-            request.onerror = () => reject(request.error);
+            request.onerror = () => {
+                console.error('IndexedDB open error:', request.error);
+                reject(request.error);
+            };
             request.onsuccess = () => {
                 this.db = request.result;
+                this.db.onerror = (event) => {
+                    console.error('IndexedDB transaction error:', event.target.error);
+                };
+                this.db.onclose = () => {
+                    console.log('IndexedDB connection closed');
+                    this.db = null;
+                };
                 resolve(this.db);
             };
 
@@ -314,6 +328,101 @@ class RamadanDB {
             };
             request.onerror = () => reject(request.error);
         });
+    }
+    
+    /**
+     * Check if IndexedDB is available
+     * @returns {boolean}
+     */
+    static isIndexedDBAvailable() {
+        try {
+            return 'indexedDB' in window && window.indexedDB !== null;
+        } catch (e) {
+            return false;
+        }
+    }
+    
+    /**
+     * Check if localStorage is available
+     * @returns {boolean}
+     */
+    static isLocalStorageAvailable() {
+        try {
+            const test = '__storage_test__';
+            localStorage.setItem(test, test);
+            localStorage.removeItem(test);
+            return true;
+        } catch (e) {
+            return false;
+        }
+    }
+    
+    /**
+     * Recover from corrupted IndexedDB by deleting and recreating
+     * @returns {Promise<boolean>} - True if recovery was performed
+     */
+    async recoverFromCorruption() {
+        console.log('Attempting to recover from IndexedDB corruption...');
+        try {
+            await this.deleteDatabase();
+            this.db = null;
+            await this.init();
+            console.log('IndexedDB recovered successfully');
+            return true;
+        } catch (error) {
+            console.error('Failed to recover from corruption:', error);
+            return false;
+        }
+    }
+    
+    /**
+     * Delete the entire database
+     * @returns {Promise<void>}
+     */
+    deleteDatabase() {
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.deleteDatabase(this.dbName);
+            request.onsuccess = () => resolve();
+            request.onerror = () => reject(request.error);
+            request.onblocked = () => {
+                console.warn('Database deletion blocked');
+                resolve();
+            };
+        });
+    }
+    
+    /**
+     * Handle quota exceeded error
+     * @param {Error} error
+     * @throws {Error} - Re-throws with user-friendly message
+     */
+    handleQuotaError(error) {
+        if (error.name === 'QuotaExceededError' || error.code === 22) {
+            const quotaError = new Error('Storage full. Please export your calendars and delete old data to continue.');
+            quotaError.name = 'QuotaExceededError';
+            throw quotaError;
+        }
+        throw error;
+    }
+    
+    /**
+     * Auto-recover when localStorage is cleared
+     * Should be called after init
+     * @returns {Promise<number|null>} - Active calendar ID or null
+     */
+    async autoRecoverActiveCalendar() {
+        let activeId = this.getActiveCalendar();
+        
+        if (!activeId) {
+            const calendars = await this.getAllCalendars();
+            if (calendars.length > 0) {
+                this.setActiveCalendar(calendars[0].id);
+                activeId = calendars[0].id;
+                console.log('Auto-recovered active calendar:', activeId);
+            }
+        }
+        
+        return activeId;
     }
 }
 
