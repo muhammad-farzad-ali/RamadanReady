@@ -10,6 +10,102 @@ const MAX_MISSED_ALARM_AGE = 60 * 60 * 1000; // 1 hour in milliseconds
 // Alarm timers
 let alarmTimers = [];
 
+// Web Worker for background alarm checking
+let alarmWorker = null;
+
+/**
+ * Initialize the Web Worker for background alarm checking
+ */
+function initAlarmWorker() {
+    if ('Worker' in window) {
+        try {
+            alarmWorker = new Worker('js/alarm-worker.js');
+            
+            alarmWorker.onmessage = function(event) {
+                if (event.data && event.data.type === 'TRIGGER_ALARM') {
+                    // Trigger the alarm notification
+                    showAlarmNotification({
+                        title: event.data.title,
+                        message: event.data.message,
+                        type: event.data.alarmType
+                    });
+                    
+                    // Show toast
+                    showToast(event.data.message, 'info');
+                }
+            };
+            
+            alarmWorker.onerror = function(error) {
+                console.error('[Alarm Worker] Error:', error);
+            };
+            
+            console.log('[Alarm Worker] Initialized');
+        } catch (error) {
+            console.error('[Alarm Worker] Failed to initialize:', error);
+        }
+    }
+}
+
+/**
+ * Update the Web Worker with current alarm settings and next alarm time
+ */
+function updateAlarmWorker() {
+    if (!alarmWorker) return;
+    
+    const settings = getAlarmSettings();
+    const stored = getStoredAlarmData();
+    
+    let nextAlarmTime = 'none';
+    let nextAlarmType = '';
+    let nextAlarmMessage = '';
+    let nextAlarmTitle = '';
+    
+    if (stored && stored.alarms) {
+        const now = new Date();
+        // Find the next upcoming alarm
+        for (const alarm of stored.alarms) {
+            if (!alarm.triggered) {
+                const alarmTime = new Date(alarm.time);
+                if (alarmTime > now) {
+                    nextAlarmTime = alarm.time;
+                    nextAlarmType = alarm.type;
+                    
+                    // Set message based on alarm type
+                    if (alarm.type === 'sahar-pre') {
+                        nextAlarmTitle = 'Sahar Reminder';
+                        nextAlarmMessage = `Sahar ends in ${settings.saharMinutes} minutes`;
+                    } else if (alarm.type === 'sahar') {
+                        nextAlarmTitle = 'Sahar Time';
+                        nextAlarmMessage = 'Time for Sahar! End your meal now.';
+                    } else if (alarm.type === 'iftar-pre') {
+                        nextAlarmTitle = 'Iftar Reminder';
+                        nextAlarmMessage = `Iftar begins in ${settings.iftarMinutes} minutes`;
+                    } else if (alarm.type === 'iftar') {
+                        nextAlarmTitle = 'Iftar Time';
+                        nextAlarmMessage = 'Time for Iftar! Break your fast.';
+                    }
+                    break;
+                }
+            }
+        }
+    }
+    
+    alarmWorker.postMessage({
+        type: 'UPDATE_SETTINGS',
+        settings: settings,
+        nextAlarmTime: nextAlarmTime
+    });
+}
+
+/**
+ * Request alarm worker to check immediately
+ */
+function requestAlarmWorkerCheck() {
+    if (alarmWorker) {
+        alarmWorker.postMessage({ type: 'CHECK_NOW' });
+    }
+}
+
 /**
  * Schedule alarms based on active calendar and user settings
  */
@@ -117,6 +213,9 @@ async function scheduleAlarms() {
     }
     
     console.log(`Scheduled ${alarms.length} alarm(s)`);
+    
+    // Update the Web Worker with new alarm times
+    updateAlarmWorker();
 }
 
 /**
@@ -345,6 +444,9 @@ async function requestNotificationPermission() {
  * Initialize alarm system on app load
  */
 function initAlarmSystem() {
+    // Initialize the Web Worker for background alarm checking
+    initAlarmWorker();
+    
     // Check for missed alarms
     checkMissedAlarms();
     

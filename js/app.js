@@ -717,6 +717,25 @@ function renderSettingsScreen() {
                 </div>
                 
                 <button class="btn-primary" onclick="saveSettings()">Save Settings</button>
+                
+                <button class="btn-secondary" onclick="testNotification()" style="margin-top: 10px;">
+                    Test Notification
+                </button>
+            </div>
+            
+            <div class="settings-section">
+                <h3>Android Battery Settings</h3>
+                <p style="font-size: 0.9em; color: #666;">To receive alarms reliably, please:</p>
+                <ol style="font-size: 0.85em; color: #555; padding-left: 20px; line-height: 1.6;">
+                    <li>Install the app to your home screen</li>
+                    <li>Go to <strong>Settings → Apps → Ramadan</strong></li>
+                    <li>Tap <strong>Battery</strong></li>
+                    <li>Select <strong>Unrestricted</strong> or <strong>Don't optimize</strong></li>
+                    <li>Also enable <strong>Autostart</strong> if available</li>
+                </ol>
+                <p style="font-size: 0.85em; color: #e67e22;">
+                    Note: Without these settings, Android may stop notifications when the app is in background.
+                </p>
             </div>
             
             <div class="settings-section">
@@ -877,6 +896,52 @@ function showToast(message, type = 'info') {
         toast.classList.remove('show');
         setTimeout(() => toast.remove(), 300);
     }, 3000);
+}
+
+/**
+ * Test notification to verify it works
+ */
+function testNotification() {
+    if (!('Notification' in window)) {
+        showToast('Notifications not supported in this browser', 'error');
+        return;
+    }
+    
+    if (Notification.permission === 'granted') {
+        // Show test notification
+        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+            navigator.serviceWorker.controller.postMessage({
+                type: 'SHOW_NOTIFICATION',
+                title: 'Test Notification',
+                body: 'If you see this, notifications are working!',
+                icon: '/icons/icon-192x192.png',
+                tag: 'test-notification',
+                requireInteraction: true
+            });
+        } else {
+            new Notification('Test Notification', {
+                body: 'If you see this, notifications are working!',
+                icon: '/icons/icon-192x192.png',
+                tag: 'test-notification'
+            });
+        }
+        
+        showToast('Test notification sent!', 'success');
+        
+        // Also show in-app toast
+        showToast('Test notification sent! Check your notification panel.', 'info');
+    } else if (Notification.permission === 'denied') {
+        showToast('Notifications are blocked. Please enable in browser settings.', 'error');
+    } else {
+        // Request permission
+        Notification.requestPermission().then(permission => {
+            if (permission === 'granted') {
+                testNotification();
+            } else {
+                showToast('Notification permission denied', 'error');
+            }
+        });
+    }
 }
 
 /**
