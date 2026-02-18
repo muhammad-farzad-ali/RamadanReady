@@ -776,6 +776,9 @@ async function saveSettings() {
         if (typeof scheduleAlarms === 'function') {
             scheduleAlarms();
         }
+        
+        // Trigger background sync
+        triggerBackgroundSync();
     }
     
     showToast('Settings saved', 'success');

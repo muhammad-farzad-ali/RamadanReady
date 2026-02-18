@@ -354,6 +354,12 @@ function initAlarmSystem() {
         scheduleAlarms();
     }
     
+    // Register for Background Sync
+    registerBackgroundSync();
+    
+    // Register for Periodic Sync
+    registerPeriodicSync();
+    
     // Reschedule alarms periodically (every hour) to handle day changes
     setInterval(() => {
         const currentSettings = getAlarmSettings();
@@ -362,6 +368,92 @@ function initAlarmSystem() {
         }
     }, 60 * 60 * 1000); // Every hour
 }
+
+/**
+ * Register for Background Sync
+ */
+async function registerBackgroundSync() {
+    if ('serviceWorker' in navigator && 'SyncManager' in window) {
+        try {
+            const registration = await navigator.serviceWorker.ready;
+            const status = await registration.sync.getTags();
+            
+            if (!status.includes('schedule-alarms')) {
+                await registration.sync.register('schedule-alarms');
+                console.log('Background Sync registered');
+            }
+        } catch (error) {
+            console.log('Background Sync not available:', error);
+        }
+    }
+}
+
+/**
+ * Trigger background sync manually
+ */
+async function triggerBackgroundSync() {
+    if ('serviceWorker' in navigator && 'SyncManager' in window) {
+        try {
+            const registration = await navigator.serviceWorker.ready;
+            await registration.sync.register('schedule-alarms');
+            console.log('Background sync triggered');
+        } catch (error) {
+            console.log('Could not trigger background sync:', error);
+        }
+    }
+}
+
+/**
+ * Register for Periodic Background Sync
+ */
+async function registerPeriodicSync() {
+    if ('serviceWorker' in navigator && 'periodicSync' in ServiceWorkerRegistration.prototype) {
+        try {
+            const registration = await navigator.serviceWorker.ready;
+            const status = await registration.periodicSync.getTags();
+            
+            if (!status.includes('alarm-check')) {
+                await registration.periodicSync.register('alarm-check', {
+                    minInterval: 60 * 60 * 1000 // 1 hour
+                });
+                console.log('Periodic Sync registered');
+            }
+        } catch (error) {
+            console.log('Periodic Sync not available:', error);
+        }
+    }
+}
+
+/**
+ * Listen for service worker messages
+ */
+function setupServiceWorkerListener() {
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.addEventListener('message', (event) => {
+            console.log('Received message from service worker:', event.data);
+            
+            if (event.data && event.data.type === 'REQUEST_ALARM_DATA') {
+                // Service worker is requesting alarm data
+                const settings = getAlarmSettings();
+                if (settings.enabled) {
+                    scheduleAlarms();
+                }
+            }
+            
+            if (event.data && event.data.type === 'CHECK_ALARMS') {
+                // Service worker is triggering alarm check
+                checkMissedAlarms();
+                const settings = getAlarmSettings();
+                if (settings.enabled) {
+                    scheduleAlarms();
+                }
+            }
+        });
+    }
+}
+
+// Initialize service worker listener
+setupServiceWorkerListener();
 
 // Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', initAlarmSystem);

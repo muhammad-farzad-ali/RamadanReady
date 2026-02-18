@@ -194,13 +194,71 @@ self.addEventListener('notificationclose', (event) => {
     console.log('Service Worker: Notification closed', event);
 });
 
-// Background sync (for future use)
+// Background sync for alarm scheduling
 self.addEventListener('sync', (event) => {
     console.log('Service Worker: Background sync', event.tag);
-    // Could be used for syncing data when connection returns
+    
+    if (event.tag === 'schedule-alarms') {
+        event.waitUntil(handleAlarmSync());
+    }
 });
 
-// Push event (for future use with push notifications)
+// Handle alarm sync - reschedule alarms from service worker
+async function handleAlarmSync() {
+    try {
+        // Get clients and request alarm data
+        const clients = await self.clients.matchAll();
+        
+        if (clients.length > 0) {
+            // Send message to main thread to get alarm data
+            const client = clients[0];
+            client.postMessage({ type: 'REQUEST_ALARM_DATA' });
+        }
+        
+        // Check for periodic sync support
+        if ('periodicSync' in self.registration) {
+            const status = await self.registration.periodicSync.getTags();
+            if (!status.includes('alarm-check')) {
+                await self.registration.periodicSync.register('alarm-check', {
+                    minInterval: 60 * 60 * 1000, // 1 hour
+                    minFetchInterval: 15 * 60 * 1000 // 15 minutes minimum
+                });
+            }
+        }
+    } catch (error) {
+        console.error('Service Worker: Alarm sync failed', error);
+    }
+}
+
+// Periodic background sync for alarm checking
+self.addEventListener('periodicsync', (event) => {
+    console.log('Service Worker: Periodic sync', event.tag);
+    
+    if (event.tag === 'alarm-check') {
+        event.waitUntil(checkAlarms());
+    }
+});
+
+// Check and trigger alarms
+async function checkAlarms() {
+    try {
+        // Try to get stored alarm data
+        const cache = await caches.open(CACHE_NAME);
+        const response = await cache.match('/js/alarms.js');
+        
+        if (response) {
+            // Notify main thread to check alarms
+            const clients = await self.clients.matchAll();
+            clients.forEach(client => {
+                client.postMessage({ type: 'CHECK_ALARMS' });
+            });
+        }
+    } catch (error) {
+        console.error('Service Worker: Alarm check failed', error);
+    }
+}
+
+// Push event (for push notifications - requires server)
 self.addEventListener('push', (event) => {
     console.log('Service Worker: Push received', event);
     
@@ -212,7 +270,17 @@ self.addEventListener('push', (event) => {
                 body: data.body,
                 icon: '/icons/icon-192x192.png',
                 tag: data.tag,
-                requireInteraction: true
+                requireInteraction: true,
+                vibrate: [200, 100, 200]
+            })
+        );
+    } else {
+        // Default notification
+        event.waitUntil(
+            self.registration.showNotification('RamadanReady', {
+                body: 'New notification',
+                icon: '/icons/icon-192x192.png',
+                tag: 'default'
             })
         );
     }
