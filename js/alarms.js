@@ -38,7 +38,7 @@ async function scheduleAlarms() {
     // Calculate alarm times
     const alarms = [];
     
-    // Sahar alarm
+    // Sahar alarm - reminder before
     const [saharHours, saharMinutes] = todayData.saharTime.split(':').map(Number);
     const saharTime = new Date(now);
     saharTime.setHours(saharHours, saharMinutes, 0, 0);
@@ -46,7 +46,7 @@ async function scheduleAlarms() {
     
     if (saharAlarmTime > now) {
         alarms.push({
-            type: 'sahar',
+            type: 'sahar-pre',
             time: saharAlarmTime,
             eventTime: todayData.saharTime,
             message: `Sahar ends in ${settings.saharMinutes} minutes`,
@@ -54,7 +54,18 @@ async function scheduleAlarms() {
         });
     }
     
-    // Iftar alarm
+    // Sahar alarm - at actual time
+    if (saharTime > now) {
+        alarms.push({
+            type: 'sahar',
+            time: saharTime,
+            eventTime: todayData.saharTime,
+            message: 'Time for Sahar! End your meal now.',
+            title: 'Sahar Time'
+        });
+    }
+    
+    // Iftar alarm - reminder before
     const [iftarHours, iftarMinutes] = todayData.iftarTime.split(':').map(Number);
     const iftarTime = new Date(now);
     iftarTime.setHours(iftarHours, iftarMinutes, 0, 0);
@@ -62,11 +73,22 @@ async function scheduleAlarms() {
     
     if (iftarAlarmTime > now) {
         alarms.push({
-            type: 'iftar',
+            type: 'iftar-pre',
             time: iftarAlarmTime,
             eventTime: todayData.iftarTime,
             message: `Iftar begins in ${settings.iftarMinutes} minutes`,
             title: 'Iftar Reminder'
+        });
+    }
+    
+    // Iftar alarm - at actual time
+    if (iftarTime > now) {
+        alarms.push({
+            type: 'iftar',
+            time: iftarTime,
+            eventTime: todayData.iftarTime,
+            message: 'Time for Iftar! Break your fast.',
+            title: 'Iftar Time'
         });
     }
     

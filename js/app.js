@@ -763,8 +763,8 @@ async function saveSettings() {
     localStorage.setItem('alarmSettings', JSON.stringify(settings));
     
     if (enabled) {
-        // Request notification permission
-        if ('Notification' in window) {
+        // Check notification permission first
+        if ('Notification' in window && Notification.permission !== 'granted') {
             const permission = await Notification.requestPermission();
             if (permission !== 'granted') {
                 showToast('Notification permission required for alarms', 'error');
@@ -1041,6 +1041,22 @@ async function requestNotificationPermission() {
             banner.remove();
             if (permission === 'granted') {
                 showToast('Notifications enabled! You will receive alarm reminders.', 'success');
+                
+                // Auto-enable alarms with default settings
+                const settings = {
+                    enabled: true,
+                    saharMinutes: 15,
+                    iftarMinutes: 15
+                };
+                localStorage.setItem('alarmSettings', JSON.stringify(settings));
+                
+                // Schedule alarms
+                if (typeof scheduleAlarms === 'function') {
+                    scheduleAlarms();
+                }
+                
+                showToast('Alarms enabled! You will be notified before Sahar and Iftar.', 'success');
+                updateAlarmStatus();
             }
         });
         
